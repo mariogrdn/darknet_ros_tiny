@@ -1,7 +1,7 @@
 darknet_ros:
   ros__parameters:
     image_view:
-      enable_opencv: true
+      enable_opencv: false
     yolo_model:
       config_file:
         name: yolov3-tiny.cfg
