@@ -1,3 +1,4 @@
 [submodule "darknet"]
 	path = darknet
-	url = https://github.com/pjreddie/darknet
+	url = https://github.com/mariogrdn/darknet
+	branch = master
