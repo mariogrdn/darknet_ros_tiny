@@ -22,5 +22,6 @@ darknet_ros:
         latch: true
     image_view:
       enable_opencv: false
+      use_darknet: true
       wait_key_delay: 3
       enable_console_output: true
