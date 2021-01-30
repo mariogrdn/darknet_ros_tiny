@@ -22,13 +22,13 @@ int main(int argc, char** argv) {
   
   auto yoloObjectDetector4 = std::make_shared<darknet_ros::YoloObjectDetector>();
   
-  auto yoloObjectDetector5 = std::make_shared<darknet_ros::YoloObjectDetector>();
+  //auto yoloObjectDetector5 = std::make_shared<darknet_ros::YoloObjectDetector>();
   
-  auto yoloObjectDetector6 = std::make_shared<darknet_ros::YoloObjectDetector>();
+  //auto yoloObjectDetector6 = std::make_shared<darknet_ros::YoloObjectDetector>();
   
-  auto yoloObjectDetector7 = std::make_shared<darknet_ros::YoloObjectDetector>();
+  //auto yoloObjectDetector7 = std::make_shared<darknet_ros::YoloObjectDetector>();
   
-  auto yoloObjectDetector8 = std::make_shared<darknet_ros::YoloObjectDetector>();
+ //auto yoloObjectDetector8 = std::make_shared<darknet_ros::YoloObjectDetector>();
 
 
   yoloObjectDetector1->init();
@@ -39,13 +39,13 @@ int main(int argc, char** argv) {
   
   yoloObjectDetector4->init();
   
-  yoloObjectDetector5->init();
+  //yoloObjectDetector5->init();
   
-  yoloObjectDetector6->init();
+  //yoloObjectDetector6->init();
   
-  yoloObjectDetector7->init();
+  //yoloObjectDetector7->init();
   
-  yoloObjectDetector8->init();
+  //yoloObjectDetector8->init();
   
   //rclcpp::spin(yoloObjectDetector->get_node_base_interface());
   
@@ -57,13 +57,13 @@ int main(int argc, char** argv) {
   
   executor.add_node(yoloObjectDetector4->get_node_base_interface());
   
-  executor.add_node(yoloObjectDetector5->get_node_base_interface());
+  //executor.add_node(yoloObjectDetector5->get_node_base_interface());
   
-  executor.add_node(yoloObjectDetector6->get_node_base_interface());
+ // executor.add_node(yoloObjectDetector6->get_node_base_interface());
   
-  executor.add_node(yoloObjectDetector7->get_node_base_interface());
+  //executor.add_node(yoloObjectDetector7->get_node_base_interface());
   
-  executor.add_node(yoloObjectDetector8->get_node_base_interface());
+  //executor.add_node(yoloObjectDetector8->get_node_base_interface());
   
   executor.spin();
 
