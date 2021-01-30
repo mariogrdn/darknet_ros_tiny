@@ -14,13 +14,31 @@ int main(int argc, char** argv) {
   
   rclcpp::executors::MultiThreadedExecutor executor;
 
-  auto yoloObjectDetector = std::make_shared<darknet_ros::YoloObjectDetector>();
+  auto yoloObjectDetector1 = std::make_shared<darknet_ros::YoloObjectDetector>();
+  
+  auto yoloObjectDetector2 = std::make_shared<darknet_ros::YoloObjectDetector>();
+  
+  auto yoloObjectDetector3 = std::make_shared<darknet_ros::YoloObjectDetector>();
+  
+  auto yoloObjectDetector4 = std::make_shared<darknet_ros::YoloObjectDetector>();
 
-  yoloObjectDetector->init();
+  yoloObjectDetector1->init();
+  
+  yoloObjectDetector2->init();
+  
+  yoloObjectDetector3->init();
+  
+  yoloObjectDetector4->init();
   
   //rclcpp::spin(yoloObjectDetector->get_node_base_interface());
   
-  executor.add_node(yoloObjectDetector->get_node_base_interface());
+  executor.add_node(yoloObjectDetector1->get_node_base_interface());
+  
+  executor.add_node(yoloObjectDetector2->get_node_base_interface());
+  
+  executor.add_node(yoloObjectDetector3->get_node_base_interface());
+  
+  executor.add_node(yoloObjectDetector4->get_node_base_interface());
   
   executor.spin();
 
