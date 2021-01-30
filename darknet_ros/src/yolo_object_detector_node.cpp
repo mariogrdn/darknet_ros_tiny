@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
   
   yoloObjectDetector8->init();
   
-  rclcpp::spin(yoloObjectDetector->get_node_base_interface());
+  //rclcpp::spin(yoloObjectDetector->get_node_base_interface());
   
   executor.add_node(yoloObjectDetector1->get_node_base_interface());
   
