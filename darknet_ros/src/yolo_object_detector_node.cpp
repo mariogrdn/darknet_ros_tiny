@@ -11,12 +11,18 @@
 
 int main(int argc, char** argv) {
   rclcpp::init(argc, argv);
+  
+  rclcpp::executors::MultiThreadedExecutor executor;
 
   auto yoloObjectDetector = std::make_shared<darknet_ros::YoloObjectDetector>();
 
   yoloObjectDetector->init();
   
-  rclcpp::spin(yoloObjectDetector->get_node_base_interface());
+  //rclcpp::spin(yoloObjectDetector->get_node_base_interface());
+  
+  executor.add_node(yoloObjectDetector->get_node_base_interface());
+  
+  executor.spin();
 
   rclcpp::shutdown();
 
