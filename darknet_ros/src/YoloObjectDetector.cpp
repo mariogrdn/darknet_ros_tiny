@@ -647,8 +647,15 @@ void YoloObjectDetector::yolo()
     std::this_thread::sleep_for(wait_duration);
   }
 
-  std::thread detect_thread;
-  std::thread fetch_thread;
+  std::thread detect_thread1;
+  std::thread detect_thread2;
+  std::thread detect_thread3;
+  std::thread detect_thread4;
+  std::thread detect_thread5;
+  std::thread detect_thread6;
+  
+  std::thread fetch_thread1;
+  std::thread fetch_thread2;
 
   srand(2222222);
 
@@ -695,8 +702,14 @@ void YoloObjectDetector::yolo()
 
   while (!demoDone_) {
     buffIndex_ = (buffIndex_ + 1) % 3;
-    fetch_thread = std::thread(&YoloObjectDetector::fetchInThread, this);
-    detect_thread = std::thread(&YoloObjectDetector::detectInThread, this);
+    fetch_thread1 = std::thread(&YoloObjectDetector::fetchInThread, this);
+    fetch_thread2 = std::thread(&YoloObjectDetector::fetchInThread, this);  
+    detect_thread1 = std::thread(&YoloObjectDetector::detectInThread, this);
+    detect_thread2 = std::thread(&YoloObjectDetector::detectInThread, this);
+    detect_thread3 = std::thread(&YoloObjectDetector::detectInThread, this);
+    detect_thread4 = std::thread(&YoloObjectDetector::detectInThread, this);
+    detect_thread5 = std::thread(&YoloObjectDetector::detectInThread, this);
+    detect_thread6 = std::thread(&YoloObjectDetector::detectInThread, this);  
     if (!demoPrefix_) {
       fps_ = 1./(what_time_is_it_now() - demoTime_);
       demoTime_ = what_time_is_it_now();
@@ -711,8 +724,14 @@ void YoloObjectDetector::yolo()
       sprintf(name, "%s_%08d", demoPrefix_, count);
       save_image(buff_[(buffIndex_ + 1) % 3], name);
     }
-    fetch_thread.join();
-    detect_thread.join();
+    fetch_thread1.join();
+    fetch_thread2.join();
+    detect_thread1.join();
+    detect_thread2.join();
+    detect_thread3.join();
+    detect_thread4.join();
+    detect_thread5.join();
+    detect_thread6.join();  
     ++count;
     if (!isNodeRunning()) {
       demoDone_ = true;
