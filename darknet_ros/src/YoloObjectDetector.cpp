@@ -721,7 +721,7 @@ void YoloObjectDetector::yolo()
       sprintf(name, "%s_%08d", demoPrefix_, count);
       save_image(buff_[(buffIndex_ + 1) % 3], name);
     }
-    fetch_thread1.join();
+    fetch_thread.join();
 
     detect_thread.join();
     ++count;
