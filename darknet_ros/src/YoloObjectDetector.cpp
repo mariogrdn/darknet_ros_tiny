@@ -727,10 +727,15 @@ void YoloObjectDetector::yolo()
     fetch_thread1.join();
     fetch_thread2.join();
     detect_thread1.join();
+    ++count;
     detect_thread2.join();
+    ++count;
     detect_thread3.join();
+    ++count;  
     detect_thread4.join();
+    ++count;  
     detect_thread5.join();
+    ++count;
     detect_thread6.join();  
     ++count;
     if (!isNodeRunning()) {
