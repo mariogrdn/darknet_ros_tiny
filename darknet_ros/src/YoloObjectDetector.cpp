@@ -69,10 +69,7 @@ YoloObjectDetector::~YoloObjectDetector()
     std::unique_lock<std::shared_mutex> lockNodeStatus(mutexNodeStatus_);
     isNodeRunning_ = false;
   }
-  yoloThread1_.join();
-  yoloThread2_.join();
-  yoloThread3_.join();
-  yoloThread4_.join();
+  yoloThread_.join();
 }
 
 bool YoloObjectDetector::readParameters()
@@ -151,10 +148,8 @@ void YoloObjectDetector::init()
   // Load network.
   setupNetwork(cfg, weights, data, thresh, detectionNames, numClasses_,
                 0, 0, 1, 0.5, 0, 0, 0, 0);
-  yoloThread1_ = std::thread(&YoloObjectDetector::yolo, this);
-  yoloThread2_ = std::thread(&YoloObjectDetector::yolo, this);
-  yoloThread3_ = std::thread(&YoloObjectDetector::yolo, this);
-  yoloThread4_ = std::thread(&YoloObjectDetector::yolo, this);
+  yoloThread_ = std::thread(&YoloObjectDetector::yolo, this);
+
 
   // Initialize publisher and subscriber.
   std::string cameraTopicName;
@@ -434,7 +429,7 @@ void *YoloObjectDetector::detectInThread()
 
         // define bounding box
         // BoundingBox must be 1% size of frame (3.2x2.4 pixels)
-        if (BoundingBox_width > 0.01 && BoundingBox_height > 0.01) {
+        if (BoundingBox_width > 0.1 && BoundingBox_height > 0.1) {
           roiBoxes_[count].x = x_center;
           roiBoxes_[count].y = y_center;
           roiBoxes_[count].w = BoundingBox_width;
@@ -721,7 +716,7 @@ void YoloObjectDetector::yolo()
       sprintf(name, "%s_%08d", demoPrefix_, count);
       save_image(buff_[(buffIndex_ + 1) % 3], name);
     }
-    fetch_thread.join();
+    fetch_thread1.join();
 
     detect_thread.join();
     ++count;
