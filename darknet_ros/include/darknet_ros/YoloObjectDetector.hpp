@@ -174,10 +174,7 @@ class YoloObjectDetector : public rclcpp::Node
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr detectionImagePublisher_;
 
   // Yolo running on thread.
-  std::thread yoloThread1_;
-  std::thread yoloThread2_;
-  std::thread yoloThread3_;
-  std::thread yoloThread4_;
+  std::thread yoloThread_;
 
   // Darknet.
   char **demoNames_;
