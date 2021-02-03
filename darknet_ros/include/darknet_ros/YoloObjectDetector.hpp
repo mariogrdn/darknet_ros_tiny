@@ -182,10 +182,26 @@ class YoloObjectDetector : public rclcpp::Node
   int demoClasses_;
 
   network *net_;
-  std_msgs::msg::Header headerBuff_[3];
-  image buff_[3];
-  image buffLetter_[3];
-  int buffId_[3];
+  std_msgs::msg::Header headerBuff_[4];
+  image buff_[4];
+  std::shared_mutex mutexBuffZero_;
+  std::shared_mutex mutexBuffOne_;
+  std::shared_mutex mutexBuffTwo_;
+  std::shared_mutex mutexBuffThree_;
+  bool flagZero = false;
+  bool flagOne = false;
+  bool flagTwo = false;
+  bool flagThree = false;
+  std::shared_mutex mutexFlagZero_;
+  std::shared_mutex mutexFlagOne_;
+  std::shared_mutex mutexFlagTwo_;
+  std::shared_mutex mutexFlagThree_;
+  image buffLetter_[4];
+  std::shared_mutex mutexLetterBuffZero_;
+  std::shared_mutex mutexLetterBuffOne_;
+  std::shared_mutex mutexLetterBuffTwo_;
+  std::shared_mutex mutexLetterBuffThree_;
+  int buffId_[4];
   int buffIndex_ = 0;
   IplImage * ipl_;
   float fps_ = 0;
@@ -236,7 +252,10 @@ class YoloObjectDetector : public rclcpp::Node
 
   void *fetchInThread();
 
-  void *displayInThread(void *ptr);
+  void *displayInThreadZero(void *ptr);
+  void *displayInThreadOne(void *ptr);
+  void *displayInThreadTwo(void *ptr);
+  void *displayInThreadThree(void *ptr);
 
   void *displayLoop(void *ptr);
 
@@ -255,7 +274,7 @@ class YoloObjectDetector : public rclcpp::Node
 
   bool isNodeRunning(void);
 
-  void *publishInThread();
+  void *publishInThread(image im);
 };
 
 } /* namespace darknet_ros*/
