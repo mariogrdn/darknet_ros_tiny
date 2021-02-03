@@ -248,14 +248,15 @@ class YoloObjectDetector : public rclcpp::Node
 
   detection *avgPredictions(network *net, int *nboxes);
 
-  void *detectInThread();
+  void *detectInThreadZero();
+  void *detectInThreadOne();
+  void *detectInThreadTwo();
+  void *detectInThreadThree();
+  
 
   void *fetchInThread();
 
-  void *displayInThreadZero(void *ptr);
-  void *displayInThreadOne(void *ptr);
-  void *displayInThreadTwo(void *ptr);
-  void *displayInThreadThree(void *ptr);
+  void *displayInThread(void *ptr);
 
   void *displayLoop(void *ptr);
 
