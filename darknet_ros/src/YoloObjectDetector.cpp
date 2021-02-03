@@ -492,7 +492,7 @@ void *YoloObjectDetector::detectInThreadOne()
       running_ = 1;
       float nms = .4;
 
-      layer l = net_->layers[net_->n - 1];0
+      layer l = net_->layers[net_->n - 1];
       float *X;
        {
         std::unique_lock<std::shared_mutex> lck(mutexLetterBuffOne_);
@@ -812,9 +812,9 @@ void *YoloObjectDetector::fetchInThread()
     if(buffIndex_ == 0){
       {
         std::shared_lock<std::shared_mutex> lock(mutexImageCallback_);
-        std::shared_lock<std::shared_mutex> lock(mutexBuffZero_);
-        std::shared_lock<std::shared_mutex> lock(mutexLetterBuffZero_);
-        std::shared_lock<std::shared_mutex> lock(mutexFlagZero_);
+        std::shared_lock<std::shared_mutex> lock1(mutexBuffZero_);
+        std::shared_lock<std::shared_mutex> lock2(mutexLetterBuffZero_);
+        std::shared_lock<std::shared_mutex> lock3(mutexFlagZero_);
         IplImageWithHeader_ imageAndHeader = getIplImageWithHeader();
         IplImage* ROS_img = imageAndHeader.image;
         ipl_into_image_cp(ROS_img, buff_[buffIndex_]);
@@ -829,9 +829,9 @@ void *YoloObjectDetector::fetchInThread()
     if(buffIndex_ == 1){
       {
         std::shared_lock<std::shared_mutex> lock(mutexImageCallback_);
-        std::shared_lock<std::shared_mutex> lock(mutexBuffOne_);
-        std::shared_lock<std::shared_mutex> lock(mutexLetterBuffOne_);
-        std::shared_lock<std::shared_mutex> lock(mutexFlagOne_);
+        std::shared_lock<std::shared_mutex> lock1(mutexBuffOne_);
+        std::shared_lock<std::shared_mutex> lock2(mutexLetterBuffOne_);
+        std::shared_lock<std::shared_mutex> lock3(mutexFlagOne_);
         IplImageWithHeader_ imageAndHeader = getIplImageWithHeader();
         IplImage* ROS_img = imageAndHeader.image;
         ipl_into_image_cp(ROS_img, buff_[buffIndex_]);
@@ -846,9 +846,9 @@ void *YoloObjectDetector::fetchInThread()
     if(buffIndex_ == 2){
       {
         std::shared_lock<std::shared_mutex> lock(mutexImageCallback_);
-        std::shared_lock<std::shared_mutex> lock(mutexBuffTwo_);
-        std::shared_lock<std::shared_mutex> lock(mutexLetterBuffTwo_);
-        std::shared_lock<std::shared_mutex> lock(mutexFlagTwo_);
+        std::shared_lock<std::shared_mutex> lock1(mutexBuffTwo_);
+        std::shared_lock<std::shared_mutex> lock2(mutexLetterBuffTwo_);
+        std::shared_lock<std::shared_mutex> lock3(mutexFlagTwo_);
         IplImageWithHeader_ imageAndHeader = getIplImageWithHeader();
         IplImage* ROS_img = imageAndHeader.image;
         ipl_into_image_cp(ROS_img, buff_[buffIndex_]);
@@ -863,9 +863,9 @@ void *YoloObjectDetector::fetchInThread()
     if(buffIndex_ == 3){
       {
         std::shared_lock<std::shared_mutex> lock(mutexImageCallback_);
-        std::shared_lock<std::shared_mutex> lock(mutexBuffThree_);
-        std::shared_lock<std::shared_mutex> lock(mutexLetterBuffThree_);
-        std::shared_lock<std::shared_mutex> lock(mutexFlagThree_);
+        std::shared_lock<std::shared_mutex> lock1(mutexBuffThree_);
+        std::shared_lock<std::shared_mutex> lock2(mutexLetterBuffThree_);
+        std::shared_lock<std::shared_mutex> lock3(mutexFlagThree_);
         IplImageWithHeader_ imageAndHeader = getIplImageWithHeader();
         IplImage* ROS_img = imageAndHeader.image;
         ipl_into_image_cp(ROS_img, buff_[buffIndex_]);
@@ -959,7 +959,7 @@ void *YoloObjectDetector::displayLoop(void *ptr)
 void *YoloObjectDetector::detectLoop(void *ptr)
 {
   while (1) {
-    detectInThread();
+    detectInThreadOne();
   }
 }
 
@@ -1130,9 +1130,9 @@ bool YoloObjectDetector::isNodeRunning(void)
 void *YoloObjectDetector::publishInThread(image im)
 {
   
-    IplImage * iplL_
+    IplImage * iplL_;
         
-    generate_image_cp(im, iplL_)
+    generate_image_cp(im, iplL_);
    
     
     cv::Mat cvImage = cv::cvarrToMat(iplL_);
