@@ -492,7 +492,8 @@ void *YoloObjectDetector::detectInThreadOne()
       running_ = 1;
       float nms = .4;
 
-      layer l = net_->layers[net_->n - 1];
+      layer l = net_->layers[net_->n - 1];0
+      float *X;
        {
         std::unique_lock<std::shared_mutex> lck(mutexLetterBuffOne_);
         X = buffLetter_[1].data;
