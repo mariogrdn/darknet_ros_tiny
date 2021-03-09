@@ -150,7 +150,6 @@ void YoloObjectDetector::init()
                 0, 0, 1, 0.5, 0, 0, 0, 0);
   yoloThread_ = std::thread(&YoloObjectDetector::yolo, this);
 
-
   // Initialize publisher and subscriber.
   std::string cameraTopicName;
   int cameraQueueSize;
@@ -376,415 +375,84 @@ detection *YoloObjectDetector::avgPredictions(network *net, int *nboxes)
   return dets;
 }
 
-void *YoloObjectDetector::detectInThreadThree()
+void *YoloObjectDetector::detectInThread()
 {
-  while(1){
-    bool flag = false;
-    {
-      std::unique_lock<std::shared_mutex> lock(mutexFlagThree_);
-      flag = flagThree;
-      flagThree = false;    
-    }
+  running_ = 1;
+  float nms = .4;
 
-    if(flag == true){
-      running_ = 1;
-      float nms = .4;
+  layer l = net_->layers[net_->n - 1];
+  float *X = buffLetter_[(buffIndex_ + 2) % 3].data;
+  float *prediction = network_predict(net_, X);
 
-      layer l = net_->layers[net_->n - 1];
-      float *X;
-       {
-        std::unique_lock<std::shared_mutex> lock(mutexLetterBuffThree_);
-        X = buffLetter_[3].data;
-      }
-      float *prediction = network_predict(net_, X);
+  rememberNetwork(net_);
+  detection *dets = 0;
+  int nboxes = 0;
+  dets = avgPredictions(net_, &nboxes);
 
-      rememberNetwork(net_);
-      detection *dets = 0;
-      int nboxes = 0;
-      dets = avgPredictions(net_, &nboxes);
+  if (nms > 0) do_nms_obj(dets, nboxes, l.classes, nms);
 
-      if (nms > 0) do_nms_obj(dets, nboxes, l.classes, nms);
+  if (enableConsoleOutput_) {
+    printf("\033[2J");
+    printf("\033[1;1H");
+    printf("\nFPS:%.1f\n",fps_);
+    printf("Objects:\n\n");
+  }
+  image display = buff_[(buffIndex_+2) % 3];
+  draw_detections(display, dets, nboxes, demoThresh_, demoNames_, demoAlphabet_, demoClasses_);
 
-      if (enableConsoleOutput_) {
-        printf("\033[2J");
-        printf("\033[1;1H");
-        printf("\nFPS:%.1f\n",fps_);
-        printf("Objects:\n\n");
-      }
+  // extract the bounding boxes and send them to ROS
+  int i, j;
+  int count = 0;
+  for (i = 0; i < nboxes; ++i) {
+    float xmin = dets[i].bbox.x - dets[i].bbox.w / 2.;
+    float xmax = dets[i].bbox.x + dets[i].bbox.w / 2.;
+    float ymin = dets[i].bbox.y - dets[i].bbox.h / 2.;
+    float ymax = dets[i].bbox.y + dets[i].bbox.h / 2.;
 
-      image display;
-      
-      {
-        std::unique_lock<std::shared_mutex> lock(mutexBuffThree_);
-        display = buff_[3];
-      }
-      
-      draw_detections(display, dets, nboxes, demoThresh_, demoNames_, demoAlphabet_, demoClasses_);
+    if (xmin < 0)
+      xmin = 0;
+    if (ymin < 0)
+      ymin = 0;
+    if (xmax > 1)
+      xmax = 1;
+    if (ymax > 1)
+      ymax = 1;
 
-      // extract the bounding boxes and send them to ROS
-      int i, j;
-      int count = 0;
-      for (i = 0; i < nboxes; ++i) {
-        float xmin = dets[i].bbox.x - dets[i].bbox.w / 2.;
-        float xmax = dets[i].bbox.x + dets[i].bbox.w / 2.;
-        float ymin = dets[i].bbox.y - dets[i].bbox.h / 2.;
-        float ymax = dets[i].bbox.y + dets[i].bbox.h / 2.;
+    // iterate through possible boxes and collect the bounding boxes
+    for (j = 0; j < demoClasses_; ++j) {
+      if (dets[i].prob[j]) {
+        float x_center = (xmin + xmax) / 2;
+        float y_center = (ymin + ymax) / 2;
+        float BoundingBox_width = xmax - xmin;
+        float BoundingBox_height = ymax - ymin;
 
-        if (xmin < 0)
-          xmin = 0;
-        if (ymin < 0)
-          ymin = 0;
-        if (xmax > 1)
-          xmax = 1;
-        if (ymax > 1)
-          ymax = 1;
-
-        // iterate through possible boxes and collect the bounding boxes
-        for (j = 0; j < demoClasses_; ++j) {
-          if (dets[i].prob[j]) {
-            float x_center = (xmin + xmax) / 2;
-            float y_center = (ymin + ymax) / 2;
-            float BoundingBox_width = xmax - xmin;
-            float BoundingBox_height = ymax - ymin;
-
-            // define bounding box
-            // BoundingBox must be 1% size of frame (3.2x2.4 pixels)
-            if (BoundingBox_width > 0.4 && BoundingBox_height > 0.4) {
-              roiBoxes_[count].x = x_center;
-              roiBoxes_[count].y = y_center;
-              roiBoxes_[count].w = BoundingBox_width;
-              roiBoxes_[count].h = BoundingBox_height;
-              roiBoxes_[count].Class = j;
-              roiBoxes_[count].prob = dets[i].prob[j];
-              count++;
-            }
-          }
+        // define bounding box
+        // BoundingBox must be 1% size of frame (3.2x2.4 pixels)
+        if (BoundingBox_width > 0.4 && BoundingBox_height > 0.4) {
+          roiBoxes_[count].x = x_center;
+          roiBoxes_[count].y = y_center;
+          roiBoxes_[count].w = BoundingBox_width;
+          roiBoxes_[count].h = BoundingBox_height;
+          roiBoxes_[count].Class = j;
+          roiBoxes_[count].prob = dets[i].prob[j];
+          count++;
         }
       }
-
-      // create array to store found bounding boxes
-      // if no object detected, make sure that ROS knows that num = 0
-      if (count == 0) {
-        roiBoxes_[0].num = 0;
-      } else {
-        roiBoxes_[0].num = count;
-      }
-
-      free_detections(dets, nboxes);
-      demoIndex_ = (demoIndex_ + 1) % demoFrame_;
-      publishInThread(display);
-      running_ = 0;
     }
   }
-}
 
-void *YoloObjectDetector::detectInThreadOne()
-{
-  while(1){
-    bool flag = false;
-    {
-      std::unique_lock<std::shared_mutex> lck(mutexFlagOne_);
-      flag = flagOne;
-      flagOne = false;    
-    }
-
-    if(flag == true){
-      running_ = 1;
-      float nms = .4;
-
-      layer l = net_->layers[net_->n - 1];
-      float *X;
-       {
-        std::unique_lock<std::shared_mutex> lck(mutexLetterBuffOne_);
-        X = buffLetter_[1].data;
-      }
-      float *prediction = network_predict(net_, X);
-
-      rememberNetwork(net_);
-      detection *dets = 0;
-      int nboxes = 0;
-      dets = avgPredictions(net_, &nboxes);
-
-      if (nms > 0) do_nms_obj(dets, nboxes, l.classes, nms);
-
-      if (enableConsoleOutput_) {
-        printf("\033[2J");
-        printf("\033[1;1H");
-        printf("\nFPS:%.1f\n",fps_);
-        printf("Objects:\n\n");
-      }
-
-      image display;
-      
-      {
-        std::unique_lock<std::shared_mutex> lck(mutexBuffOne_);
-        display = buff_[1];
-      }
-      
-      draw_detections(display, dets, nboxes, demoThresh_, demoNames_, demoAlphabet_, demoClasses_);
-
-      // extract the bounding boxes and send them to ROS
-      int i, j;
-      int count = 0;
-      for (i = 0; i < nboxes; ++i) {
-        float xmin = dets[i].bbox.x - dets[i].bbox.w / 2.;
-        float xmax = dets[i].bbox.x + dets[i].bbox.w / 2.;
-        float ymin = dets[i].bbox.y - dets[i].bbox.h / 2.;
-        float ymax = dets[i].bbox.y + dets[i].bbox.h / 2.;
-
-        if (xmin < 0)
-          xmin = 0;
-        if (ymin < 0)
-          ymin = 0;
-        if (xmax > 1)
-          xmax = 1;
-        if (ymax > 1)
-          ymax = 1;
-
-        // iterate through possible boxes and collect the bounding boxes
-        for (j = 0; j < demoClasses_; ++j) {
-          if (dets[i].prob[j]) {
-            float x_center = (xmin + xmax) / 2;
-            float y_center = (ymin + ymax) / 2;
-            float BoundingBox_width = xmax - xmin;
-            float BoundingBox_height = ymax - ymin;
-
-            // define bounding box
-            // BoundingBox must be 1% size of frame (3.2x2.4 pixels)
-            if (BoundingBox_width > 0.4 && BoundingBox_height > 0.4) {
-              roiBoxes_[count].x = x_center;
-              roiBoxes_[count].y = y_center;
-              roiBoxes_[count].w = BoundingBox_width;
-              roiBoxes_[count].h = BoundingBox_height;
-              roiBoxes_[count].Class = j;
-              roiBoxes_[count].prob = dets[i].prob[j];
-              count++;
-            }
-          }
-        }
-      }
-
-      // create array to store found bounding boxes
-      // if no object detected, make sure that ROS knows that num = 0
-      if (count == 0) {
-        roiBoxes_[0].num = 0;
-      } else {
-        roiBoxes_[0].num = count;
-      }
-
-      free_detections(dets, nboxes);
-      demoIndex_ = (demoIndex_ + 1) % demoFrame_;
-      publishInThread(display);
-      running_ = 0;
-    }
+  // create array to store found bounding boxes
+  // if no object detected, make sure that ROS knows that num = 0
+  if (count == 0) {
+    roiBoxes_[0].num = 0;
+  } else {
+    roiBoxes_[0].num = count;
   }
-}
 
-void *YoloObjectDetector::detectInThreadTwo()
-{
-  while(1){
-    bool flag = false;
-    {
-      std::unique_lock<std::shared_mutex> lock(mutexFlagTwo_);
-      flag = flagTwo;
-      flagTwo = false;    
-    }
-
-    if(flag == true){
-      running_ = 1;
-      float nms = .4;
-
-      layer l = net_->layers[net_->n - 1];
-      float *X;
-      {
-        std::unique_lock<std::shared_mutex> lock(mutexLetterBuffTwo_);
-        X = buffLetter_[2].data;
-      }
-      float *prediction = network_predict(net_, X);
-
-      rememberNetwork(net_);
-      detection *dets = 0;
-      int nboxes = 0;
-      dets = avgPredictions(net_, &nboxes);
-
-      if (nms > 0) do_nms_obj(dets, nboxes, l.classes, nms);
-
-      if (enableConsoleOutput_) {
-        printf("\033[2J");
-        printf("\033[1;1H");
-        printf("\nFPS:%.1f\n",fps_);
-        printf("Objects:\n\n");
-      }
-
-      image display;
-      
-      {
-        std::unique_lock<std::shared_mutex> lock(mutexBuffTwo_);
-        display = buff_[2];
-      }
-      
-      draw_detections(display, dets, nboxes, demoThresh_, demoNames_, demoAlphabet_, demoClasses_);
-
-      // extract the bounding boxes and send them to ROS
-      int i, j;
-      int count = 0;
-      for (i = 0; i < nboxes; ++i) {
-        float xmin = dets[i].bbox.x - dets[i].bbox.w / 2.;
-        float xmax = dets[i].bbox.x + dets[i].bbox.w / 2.;
-        float ymin = dets[i].bbox.y - dets[i].bbox.h / 2.;
-        float ymax = dets[i].bbox.y + dets[i].bbox.h / 2.;
-
-        if (xmin < 0)
-          xmin = 0;
-        if (ymin < 0)
-          ymin = 0;
-        if (xmax > 1)
-          xmax = 1;
-        if (ymax > 1)
-          ymax = 1;
-
-        // iterate through possible boxes and collect the bounding boxes
-        for (j = 0; j < demoClasses_; ++j) {
-          if (dets[i].prob[j]) {
-            float x_center = (xmin + xmax) / 2;
-            float y_center = (ymin + ymax) / 2;
-            float BoundingBox_width = xmax - xmin;
-            float BoundingBox_height = ymax - ymin;
-
-            // define bounding box
-            // BoundingBox must be 1% size of frame (3.2x2.4 pixels)
-            if (BoundingBox_width > 0.4 && BoundingBox_height > 0.4) {
-              roiBoxes_[count].x = x_center;
-              roiBoxes_[count].y = y_center;
-              roiBoxes_[count].w = BoundingBox_width;
-              roiBoxes_[count].h = BoundingBox_height;
-              roiBoxes_[count].Class = j;
-              roiBoxes_[count].prob = dets[i].prob[j];
-              count++;
-            }
-          }
-        }
-      }
-
-      // create array to store found bounding boxes
-      // if no object detected, make sure that ROS knows that num = 0
-      if (count == 0) {
-        roiBoxes_[0].num = 0;
-      } else {
-        roiBoxes_[0].num = count;
-      }
-
-      free_detections(dets, nboxes);
-      demoIndex_ = (demoIndex_ + 1) % demoFrame_;
-      publishInThread(display);
-      running_ = 0;
-    }
-  }
-}
-
-void *YoloObjectDetector::detectInThreadZero()
-{
-  while(1){
-    bool flag = false;
-    {
-      std::unique_lock<std::shared_mutex> lock(mutexFlagZero_);
-      flag = flagZero;
-      flagZero = false;    
-    }
-
-    if(flag == true){
-      running_ = 1;
-      float nms = .4;
-
-      layer l = net_->layers[net_->n - 1];
-      float *X;
-      {
-        std::unique_lock<std::shared_mutex> lock(mutexLetterBuffZero_);
-        X = buffLetter_[0].data;
-      }
-      
-      float *prediction = network_predict(net_, X);
-
-      rememberNetwork(net_);
-      detection *dets = 0;
-      int nboxes = 0;
-      dets = avgPredictions(net_, &nboxes);
-
-      if (nms > 0) do_nms_obj(dets, nboxes, l.classes, nms);
-
-      if (enableConsoleOutput_) {
-        printf("\033[2J");
-        printf("\033[1;1H");
-        printf("\nFPS:%.1f\n",fps_);
-        printf("Objects:\n\n");
-      }
-
-      image display;
-      
-      {
-        std::unique_lock<std::shared_mutex> lock(mutexBuffZero_);
-        display = buff_[0];
-      }
-      
-      draw_detections(display, dets, nboxes, demoThresh_, demoNames_, demoAlphabet_, demoClasses_);
-
-
-      // extract the bounding boxes and send them to ROS
-      int i, j;
-      int count = 0;
-      for (i = 0; i < nboxes; ++i) {
-        float xmin = dets[i].bbox.x - dets[i].bbox.w / 2.;
-        float xmax = dets[i].bbox.x + dets[i].bbox.w / 2.;
-        float ymin = dets[i].bbox.y - dets[i].bbox.h / 2.;
-        float ymax = dets[i].bbox.y + dets[i].bbox.h / 2.;
-
-        if (xmin < 0)
-          xmin = 0;
-        if (ymin < 0)
-          ymin = 0;
-        if (xmax > 1)
-          xmax = 1;
-        if (ymax > 1)
-          ymax = 1;
-
-        // iterate through possible boxes and collect the bounding boxes
-        for (j = 0; j < demoClasses_; ++j) {
-          if (dets[i].prob[j]) {
-            float x_center = (xmin + xmax) / 2;
-            float y_center = (ymin + ymax) / 2;
-            float BoundingBox_width = xmax - xmin;
-            float BoundingBox_height = ymax - ymin;
-
-            // define bounding box
-            // BoundingBox must be 1% size of frame (3.2x2.4 pixels)
-            if (BoundingBox_width > 0.4 && BoundingBox_height > 0.4) {
-              roiBoxes_[count].x = x_center;
-              roiBoxes_[count].y = y_center;
-              roiBoxes_[count].w = BoundingBox_width;
-              roiBoxes_[count].h = BoundingBox_height;
-              roiBoxes_[count].Class = j;
-              roiBoxes_[count].prob = dets[i].prob[j];
-              count++;
-            }
-          }
-        }
-      }
-
-      // create array to store found bounding boxes
-      // if no object detected, make sure that ROS knows that num = 0
-      if (count == 0) {
-        roiBoxes_[0].num = 0;
-      } else {
-        roiBoxes_[0].num = count;
-      }
-
-      free_detections(dets, nboxes);
-
-      publishInThread(display);
-      demoIndex_ = (demoIndex_ + 1) % demoFrame_;
-      running_ = 0;
-    }
-  }
+  free_detections(dets, nboxes);
+  demoIndex_ = (demoIndex_ + 1) % demoFrame_;
+  running_ = 0;
+  return 0;
 }
 
 
@@ -808,78 +476,17 @@ void ipl_into_image_cp(IplImage* src, image im)
 
 void *YoloObjectDetector::fetchInThread()
 {
-  while(1){
-    if(buffIndex_ == 0){
-      {
-        std::shared_lock<std::shared_mutex> lock(mutexImageCallback_);
-        std::shared_lock<std::shared_mutex> lock1(mutexBuffZero_);
-        std::shared_lock<std::shared_mutex> lock2(mutexLetterBuffZero_);
-        std::shared_lock<std::shared_mutex> lock3(mutexFlagZero_);
-        IplImageWithHeader_ imageAndHeader = getIplImageWithHeader();
-        IplImage* ROS_img = imageAndHeader.image;
-        ipl_into_image_cp(ROS_img, buff_[buffIndex_]);
-        headerBuff_[buffIndex_] = imageAndHeader.header;
-        buffId_[buffIndex_] = actionId_;
-        rgbgr_image(buff_[buffIndex_]);
-        letterbox_image_into(buff_[buffIndex_], net_->w, net_->h, buffLetter_[buffIndex_]);
-        flagZero = true;
-      }
-    }
-
-    if(buffIndex_ == 1){
-      {
-        std::shared_lock<std::shared_mutex> lock(mutexImageCallback_);
-        std::shared_lock<std::shared_mutex> lock1(mutexBuffOne_);
-        std::shared_lock<std::shared_mutex> lock2(mutexLetterBuffOne_);
-        std::shared_lock<std::shared_mutex> lock3(mutexFlagOne_);
-        IplImageWithHeader_ imageAndHeader = getIplImageWithHeader();
-        IplImage* ROS_img = imageAndHeader.image;
-        ipl_into_image_cp(ROS_img, buff_[buffIndex_]);
-        headerBuff_[buffIndex_] = imageAndHeader.header;
-        buffId_[buffIndex_] = actionId_;
-        rgbgr_image(buff_[buffIndex_]);
-        letterbox_image_into(buff_[buffIndex_], net_->w, net_->h, buffLetter_[buffIndex_]);
-        flagOne = true;
-      }
-    }
-
-    if(buffIndex_ == 2){
-      {
-        std::shared_lock<std::shared_mutex> lock(mutexImageCallback_);
-        std::shared_lock<std::shared_mutex> lock1(mutexBuffTwo_);
-        std::shared_lock<std::shared_mutex> lock2(mutexLetterBuffTwo_);
-        std::shared_lock<std::shared_mutex> lock3(mutexFlagTwo_);
-        IplImageWithHeader_ imageAndHeader = getIplImageWithHeader();
-        IplImage* ROS_img = imageAndHeader.image;
-        ipl_into_image_cp(ROS_img, buff_[buffIndex_]);
-        headerBuff_[buffIndex_] = imageAndHeader.header;
-        buffId_[buffIndex_] = actionId_;
-        rgbgr_image(buff_[buffIndex_]);
-        letterbox_image_into(buff_[buffIndex_], net_->w, net_->h, buffLetter_[buffIndex_]);
-        flagTwo = true;
-      }
-    }
-
-    if(buffIndex_ == 3){
-      {
-        std::shared_lock<std::shared_mutex> lock(mutexImageCallback_);
-        std::shared_lock<std::shared_mutex> lock1(mutexBuffThree_);
-        std::shared_lock<std::shared_mutex> lock2(mutexLetterBuffThree_);
-        std::shared_lock<std::shared_mutex> lock3(mutexFlagThree_);
-        IplImageWithHeader_ imageAndHeader = getIplImageWithHeader();
-        IplImage* ROS_img = imageAndHeader.image;
-        ipl_into_image_cp(ROS_img, buff_[buffIndex_]);
-        headerBuff_[buffIndex_] = imageAndHeader.header;
-        buffId_[buffIndex_] = actionId_;
-        rgbgr_image(buff_[buffIndex_]);
-        letterbox_image_into(buff_[buffIndex_], net_->w, net_->h, buffLetter_[buffIndex_]);
-        flagThree = true;
-      }    
-    }
-    
-    buffIndex_ = (buffIndex_ + 1) % 4;
-  
+  {
+    std::shared_lock<std::shared_mutex> lock(mutexImageCallback_);
+    IplImageWithHeader_ imageAndHeader = getIplImageWithHeader();
+    IplImage* ROS_img = imageAndHeader.image;
+    ipl_into_image_cp(ROS_img, buff_[buffIndex_]);
+    headerBuff_[buffIndex_] = imageAndHeader.header;
+    buffId_[buffIndex_] = actionId_;
   }
+  rgbgr_image(buff_[buffIndex_]);
+  letterbox_image_into(buff_[buffIndex_], net_->w, net_->h, buffLetter_[buffIndex_]);
+  return 0;
 }
 
 
@@ -959,7 +566,7 @@ void *YoloObjectDetector::displayLoop(void *ptr)
 void *YoloObjectDetector::detectLoop(void *ptr)
 {
   while (1) {
-    detectInThreadOne();
+    detectInThread();
   }
 }
 
@@ -1040,13 +647,8 @@ void YoloObjectDetector::yolo()
     std::this_thread::sleep_for(wait_duration);
   }
 
-  std::thread detect_thread_zero;
-  std::thread detect_thread_one;
-  std::thread detect_thread_two;
-  std::thread detect_thread_three;
-
+  std::thread detect_thread;
   std::thread fetch_thread;
-
 
   srand(2222222);
 
@@ -1068,38 +670,50 @@ void YoloObjectDetector::yolo()
     buff_[0] = ipl_to_image_cp(ROS_img);
     headerBuff_[0] = imageAndHeader.header;
   }
-
   buff_[1] = copy_image(buff_[0]);
   buff_[2] = copy_image(buff_[0]);
-  buff_[3] = copy_image(buff_[0]);
   headerBuff_[1] = headerBuff_[0];
   headerBuff_[2] = headerBuff_[0];
-  headerBuff_[3] = headerBuff_[0];
   buffLetter_[0] = letterbox_image(buff_[0], net_->w, net_->h);
   buffLetter_[1] = letterbox_image(buff_[0], net_->w, net_->h);
   buffLetter_[2] = letterbox_image(buff_[0], net_->w, net_->h);
-  buffLetter_[3] = letterbox_image(buff_[0], net_->w, net_->h);
   ipl_ = cvCreateImage(cvSize(buff_[0].w, buff_[0].h), IPL_DEPTH_8U, buff_[0].c);
 
-  
+  int count = 0;
+
+  if (!demoPrefix_ && viewImage_) {
+      cv::namedWindow("YOLO V3", cv::WINDOW_NORMAL);
+    if (fullScreen_) {
+      cv::setWindowProperty("YOLO V3", cv::WND_PROP_FULLSCREEN, cv::WINDOW_FULLSCREEN);
+    } else {
+      cv::moveWindow("YOLO V3", 0, 0);
+      cv::resizeWindow("YOLO V3", 640, 480);
+    }
+  }
+
   demoTime_ = what_time_is_it_now();
 
   while (!demoDone_) {
-    
+    buffIndex_ = (buffIndex_ + 1) % 3;
     fetch_thread = std::thread(&YoloObjectDetector::fetchInThread, this);
-
-    detect_thread_zero = std::thread(&YoloObjectDetector::detectInThreadZero, this);
-    detect_thread_one = std::thread(&YoloObjectDetector::detectInThreadOne, this);
-    detect_thread_two = std::thread(&YoloObjectDetector::detectInThreadTwo, this);
-    detect_thread_three = std::thread(&YoloObjectDetector::detectInThreadThree, this);
- 
+    detect_thread = std::thread(&YoloObjectDetector::detectInThread, this);
+    if (!demoPrefix_) {
+      fps_ = 1./(what_time_is_it_now() - demoTime_);
+      demoTime_ = what_time_is_it_now();
+      if (viewImage_) {
+        displayInThread(0);
+      } else {
+        generate_image_cp(buff_[(buffIndex_ + 1)%3], ipl_);
+      }
+      publishInThread();
+    } else {
+      char name[256];
+      sprintf(name, "%s_%08d", demoPrefix_, count);
+      save_image(buff_[(buffIndex_ + 1) % 3], name);
+    }
     fetch_thread.join();
-
-    detect_thread_zero.join();
-    detect_thread_one.join();
-    detect_thread_two.join();
-    detect_thread_three.join();
-    
+    detect_thread.join();
+    ++count;
     if (!isNodeRunning()) {
       demoDone_ = true;
     }
@@ -1127,85 +741,80 @@ bool YoloObjectDetector::isNodeRunning(void)
   return isNodeRunning_;
 }
 
-void *YoloObjectDetector::publishInThread(image im)
+void *YoloObjectDetector::publishInThread()
 {
-  
-    IplImage * iplL_;
-        
-    generate_image_cp(im, iplL_);
-   
-    
-    cv::Mat cvImage = cv::cvarrToMat(iplL_);
-    if (!publishDetectionImage(cv::Mat(cvImage))) {
-      RCLCPP_DEBUG(get_logger(), "Detection image has not been broadcasted.");
-    }
+  // Publish image.
+  cv::Mat cvImage = cv::cvarrToMat(ipl_);
+  if (!publishDetectionImage(cv::Mat(cvImage))) {
+    RCLCPP_DEBUG(get_logger(), "Detection image has not been broadcasted.");
+  }
 
-    // Publish bounding boxes and detection result.
-    int num = roiBoxes_[0].num;
-    if (num > 0 && num <= 100) {
-      for (int i = 0; i < num; i++) {
-        for (int j = 0; j < numClasses_; j++) {
-          if (roiBoxes_[i].Class == j) {
-            rosBoxes_[j].push_back(roiBoxes_[i]);
-            rosBoxCounter_[j]++;
-          }
+  // Publish bounding boxes and detection result.
+  int num = roiBoxes_[0].num;
+  if (num > 0 && num <= 100) {
+    for (int i = 0; i < num; i++) {
+      for (int j = 0; j < numClasses_; j++) {
+        if (roiBoxes_[i].Class == j) {
+          rosBoxes_[j].push_back(roiBoxes_[i]);
+          rosBoxCounter_[j]++;
         }
       }
-
-      darknet_ros_msgs::msg::ObjectCount msg;
-      msg.header.stamp = this->now();
-      msg.header.frame_id = "detection";
-      msg.count = num;
-      objectPublisher_->publish(msg);
-
-      for (int i = 0; i < numClasses_; i++) {
-        if (rosBoxCounter_[i] > 0) {
-          darknet_ros_msgs::msg::BoundingBox boundingBox;
-
-          for (int j = 0; j < rosBoxCounter_[i]; j++) {
-            int xmin = (rosBoxes_[i][j].x - rosBoxes_[i][j].w / 2) * frameWidth_;
-            int ymin = (rosBoxes_[i][j].y - rosBoxes_[i][j].h / 2) * frameHeight_;
-            int xmax = (rosBoxes_[i][j].x + rosBoxes_[i][j].w / 2) * frameWidth_;
-            int ymax = (rosBoxes_[i][j].y + rosBoxes_[i][j].h / 2) * frameHeight_;
-
-            boundingBox.class_id = classLabels_[i];
-            boundingBox.id = i;
-            boundingBox.probability = rosBoxes_[i][j].prob;
-            boundingBox.xmin = xmin;
-            boundingBox.ymin = ymin;
-            boundingBox.xmax = xmax;
-            boundingBox.ymax = ymax;
-            boundingBoxesResults_.bounding_boxes.push_back(boundingBox);
-          }
-        }
-      }
-      boundingBoxesResults_.header.stamp = this->now();
-      boundingBoxesResults_.header.frame_id = "detection";
-      boundingBoxesResults_.image_header = headerBuff_[(buffIndex_ + 1) % 3];
-      boundingBoxesPublisher_->publish(boundingBoxesResults_);
-    } else {
-      darknet_ros_msgs::msg::ObjectCount msg;
-      msg.header.stamp = this->now();
-      msg.header.frame_id = "detection";
-      msg.count = 0;
-      objectPublisher_->publish(msg);
     }
-    if (isCheckingForObjects()) {
-      RCLCPP_DEBUG(get_logger(), "[YoloObjectDetector] check for objects in image.");
-      auto result = std::make_shared<CheckForObjectsAction::Result>();
 
-      result->id = buffId_[0];
-      result->bounding_boxes = boundingBoxesResults_;
-      goal_handle_->succeed(result);
-      action_active_ = false;
-    }
-    boundingBoxesResults_.bounding_boxes.clear();
+    darknet_ros_msgs::msg::ObjectCount msg;
+    msg.header.stamp = this->now();
+    msg.header.frame_id = "detection";
+    msg.count = num;
+    objectPublisher_->publish(msg);
+
     for (int i = 0; i < numClasses_; i++) {
-      rosBoxes_[i].clear();
-      rosBoxCounter_[i] = 0;
-    }
+      if (rosBoxCounter_[i] > 0) {
+        darknet_ros_msgs::msg::BoundingBox boundingBox;
 
-    return 0;  
+        for (int j = 0; j < rosBoxCounter_[i]; j++) {
+          int xmin = (rosBoxes_[i][j].x - rosBoxes_[i][j].w / 2) * frameWidth_;
+          int ymin = (rosBoxes_[i][j].y - rosBoxes_[i][j].h / 2) * frameHeight_;
+          int xmax = (rosBoxes_[i][j].x + rosBoxes_[i][j].w / 2) * frameWidth_;
+          int ymax = (rosBoxes_[i][j].y + rosBoxes_[i][j].h / 2) * frameHeight_;
+
+          boundingBox.class_id = classLabels_[i];
+          boundingBox.id = i;
+          boundingBox.probability = rosBoxes_[i][j].prob;
+          boundingBox.xmin = xmin;
+          boundingBox.ymin = ymin;
+          boundingBox.xmax = xmax;
+          boundingBox.ymax = ymax;
+          boundingBoxesResults_.bounding_boxes.push_back(boundingBox);
+        }
+      }
+    }
+    boundingBoxesResults_.header.stamp = this->now();
+    boundingBoxesResults_.header.frame_id = "detection";
+    boundingBoxesResults_.image_header = headerBuff_[(buffIndex_ + 1) % 3];
+    boundingBoxesPublisher_->publish(boundingBoxesResults_);
+  } else {
+    darknet_ros_msgs::msg::ObjectCount msg;
+    msg.header.stamp = this->now();
+    msg.header.frame_id = "detection";
+    msg.count = 0;
+    objectPublisher_->publish(msg);
+  }
+  if (isCheckingForObjects()) {
+    RCLCPP_DEBUG(get_logger(), "[YoloObjectDetector] check for objects in image.");
+    auto result = std::make_shared<CheckForObjectsAction::Result>();
+
+    result->id = buffId_[0];
+    result->bounding_boxes = boundingBoxesResults_;
+    goal_handle_->succeed(result);
+    action_active_ = false;
+  }
+  boundingBoxesResults_.bounding_boxes.clear();
+  for (int i = 0; i < numClasses_; i++) {
+    rosBoxes_[i].clear();
+    rosBoxCounter_[i] = 0;
+  }
+
+  return 0;
 }
 
 
